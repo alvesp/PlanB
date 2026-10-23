@@ -15,6 +15,7 @@ import pt.karate.aprendizagem.repo.AlunoRefRepository;
 import pt.karate.aprendizagem.repo.AvaliacaoTemaRepository;
 import pt.karate.aprendizagem.repo.ExameRepository;
 import pt.karate.aprendizagem.repo.GraduacaoRepository;
+import pt.karate.aprendizagem.repo.PraticaTema;
 import pt.karate.aprendizagem.repo.PresencaRepository;
 import pt.karate.aprendizagem.repo.TemaRepository;
 
@@ -43,7 +44,10 @@ public class ProgressoService {
             LocalDate ultimaPresenca,
             List<ExameGraduacao> exames,
             List<AvaliacaoTema> avaliacoesAtuais,
+            List<AvaliacaoTema> avaliacoesHistorico,
+            List<PraticaTema> pratica,
             List<Tema> programaProxima,
+            LocalDate referencia,
             Elegibilidade elegibilidade
     ) {
         public List<ExameGraduacao> aprovados() {
@@ -99,6 +103,7 @@ public class ProgressoService {
                 proxima.map(Graduacao::ref).orElse(null), referencia, desde, programa.size(), dominados, ate);
 
         return new Progresso(aluno, ate, atual, proxima, total, desde, presencas.ultimaPresenca(alunoId),
-                historico, avaliacoesAtuais, programa, elegibilidade);
+                historico, avaliacoesAtuais, avaliacoes.historico(alunoId), presencas.praticaPorTema(alunoId),
+                programa, referencia, elegibilidade);
     }
 }

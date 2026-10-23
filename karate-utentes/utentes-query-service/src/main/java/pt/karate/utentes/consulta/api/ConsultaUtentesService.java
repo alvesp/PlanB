@@ -1,30 +1,24 @@
 package pt.karate.utentes.consulta.api;
 
 import org.opensearch.client.json.JsonData;
-import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
 import org.opensearch.client.opensearch._types.query_dsl.ChildScoreMode;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
 import org.opensearch.client.opensearch.core.SearchRequest;
-import org.opensearch.client.opensearch.core.SearchResponse;
-import org.opensearch.client.opensearch.core.search.Hit;
 import org.springframework.stereotype.Service;
-import pt.karate.aprendizagem.events.ProgressoAlunoSnapshot;
 import pt.karate.utentes.consulta.indices.Indices;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.PessoaSnapshot;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
-public class ConsultaService {
+/** Consultas de utentes: alunos, pessoas e responsável fiscal. */
+public class ConsultaUtentesService {
 
     public record FiltroAlunos(String texto, String estado, String graduacao, Boolean menor,
                                String responsavelId, int pagina, int tamanho) {
@@ -33,59 +27,27 @@ public class ConsultaService {
     public record FiltroPessoas(String texto, String nif, int pagina, int tamanho) {
     }
 
-    /** {@code semPresencaDesde}: alunos cuja última presença é anterior a esta data (ou sem presenças). */
-    public record FiltroProgresso(String texto, String graduacao, LocalDate semPresencaDesde, int pagina, int tamanho) {
-    }
-
     private static final int MAIORIDADE = 18;
 
-    private final OpenSearchClient client;
+    private final LeituraOpenSearch leitura;
     private final Clock clock;
 
-    public ConsultaService(OpenSearchClient client, Clock clock) {
-        this.client = client;
+    public ConsultaUtentesService(LeituraOpenSearch leitura, Clock clock) {
+        this.leitura = leitura;
         this.clock = clock;
     }
 
     public Optional<AlunoSnapshot> aluno(String id) {
-        return obter(Indices.ALUNOS, id, AlunoSnapshot.class);
+        return leitura.obter(Indices.ALUNOS, id, AlunoSnapshot.class);
     }
 
     public Optional<PessoaSnapshot> pessoa(String id) {
-        return obter(Indices.PESSOAS, id, PessoaSnapshot.class);
+        return leitura.obter(Indices.PESSOAS, id, PessoaSnapshot.class);
     }
 
-    public Optional<ProgressoAlunoSnapshot> progresso(String alunoId) {
-        return obter(Indices.PROGRESSO, alunoId, ProgressoAlunoSnapshot.class);
-    }
-
-    /** Progresso dos alunos: por nome, graduação atual e assiduidade (ex.: quem não treina há um mês). */
-    public Pagina<ProgressoAlunoSnapshot> pesquisarProgresso(FiltroProgresso f) {
-        BoolQuery.Builder bool = new BoolQuery.Builder();
-        if (temTexto(f.texto())) {
-            String t = f.texto().strip();
-            bool.must(m -> m.match(mt -> mt.field("nome").query(FieldValue.of(t)).fuzziness("AUTO")));
-        }
-        if (temTexto(f.graduacao())) {
-            bool.filter(termo("graduacaoAtual.codigo", f.graduacao().strip()));
-        }
-        if (f.semPresencaDesde() != null) {
-            String limite = f.semPresencaDesde().toString();
-            bool.filter(q -> q.bool(b -> b
-                    .should(s -> s.range(r -> r.field("ultimaPresenca").lt(JsonData.of(limite))))
-                    .should(s -> s.bool(n -> n.mustNot(e -> e.exists(x -> x.field("ultimaPresenca")))))
-                    .minimumShouldMatch("1")));
-        }
-        SearchRequest.Builder req = new SearchRequest.Builder()
-                .index(Indices.PROGRESSO)
-                .query(q -> q.bool(bool.build()))
-                .from(f.pagina() * f.tamanho())
-                .size(f.tamanho())
-                .trackTotalHits(t -> t.enabled(true));
-        if (!temTexto(f.texto())) {
-            req.sort(s -> s.field(fs -> fs.field("nome.keyword").order(SortOrder.Asc)));
-        }
-        return pesquisar(req.build(), ProgressoAlunoSnapshot.class, f.pagina(), f.tamanho());
+    /** Quem é faturado pelas mensalidades do aluno. */
+    public Optional<AlunoSnapshot.ResponsavelFiscalResumo> responsavelFiscal(String alunoId) {
+        return aluno(alunoId).map(AlunoSnapshot::responsavelFiscal);
     }
 
     /**
@@ -136,7 +98,7 @@ public class ConsultaService {
         if (!temTexto(f.texto())) {
             req.sort(s -> s.field(fs -> fs.field("nome.keyword").order(SortOrder.Asc)));
         }
-        return pesquisar(req.build(), AlunoSnapshot.class, f.pagina(), f.tamanho());
+        return leitura.pagina(req.build(), AlunoSnapshot.class, f.pagina(), f.tamanho());
     }
 
     public Pagina<PessoaSnapshot> pesquisarPessoas(FiltroPessoas f) {
@@ -160,28 +122,7 @@ public class ConsultaService {
         if (!temTexto(f.texto())) {
             req.sort(s -> s.field(fs -> fs.field("nome.keyword").order(SortOrder.Asc)));
         }
-        return pesquisar(req.build(), PessoaSnapshot.class, f.pagina(), f.tamanho());
-    }
-
-    private <T> Pagina<T> pesquisar(SearchRequest req, Class<T> tipo, int pagina, int tamanho) {
-        try {
-            SearchResponse<T> resp = client.search(req, tipo);
-            long total = resp.hits().total() == null ? 0 : resp.hits().total().value();
-            return new Pagina<>(
-                    resp.hits().hits().stream().map(Hit::source).filter(Objects::nonNull).toList(),
-                    total, pagina, tamanho);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private <T> Optional<T> obter(String indice, String id, Class<T> tipo) {
-        try {
-            var resp = client.get(g -> g.index(indice).id(id), tipo);
-            return resp.found() ? Optional.ofNullable(resp.source()) : Optional.empty();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return leitura.pagina(req.build(), PessoaSnapshot.class, f.pagina(), f.tamanho());
     }
 
     private static Query termo(String campo, String valor) {

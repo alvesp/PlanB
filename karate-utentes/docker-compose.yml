@@ -4,16 +4,20 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: utentes
-      POSTGRES_USER: utentes
-      POSTGRES_PASSWORD: utentes
+      # Superutilizador: só usado pelo script de inicialização para criar bases e utilizadores.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev}
+      UTENTES_DB_USER: ${UTENTES_DB_USER:-utentes_app}
+      UTENTES_DB_PASSWORD: ${UTENTES_DB_PASSWORD:-utentes_dev}
+      APRENDIZAGEM_DB_USER: ${APRENDIZAGEM_DB_USER:-aprendizagem_app}
+      APRENDIZAGEM_DB_PASSWORD: ${APRENDIZAGEM_DB_PASSWORD:-aprendizagem_dev}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U utentes -d utentes"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d utentes"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -64,8 +68,8 @@ services:
       dockerfile: utentes-service/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/utentes
-      SPRING_DATASOURCE_USERNAME: utentes
-      SPRING_DATASOURCE_PASSWORD: utentes
+      SPRING_DATASOURCE_USERNAME: ${UTENTES_DB_USER:-utentes_app}
+      SPRING_DATASOURCE_PASSWORD: ${UTENTES_DB_PASSWORD:-utentes_dev}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8080:8080"
@@ -81,8 +85,8 @@ services:
       dockerfile: aprendizagem-service/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aprendizagem
-      SPRING_DATASOURCE_USERNAME: utentes
-      SPRING_DATASOURCE_PASSWORD: utentes
+      SPRING_DATASOURCE_USERNAME: ${APRENDIZAGEM_DB_USER:-aprendizagem_app}
+      SPRING_DATASOURCE_PASSWORD: ${APRENDIZAGEM_DB_PASSWORD:-aprendizagem_dev}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8082:8082"

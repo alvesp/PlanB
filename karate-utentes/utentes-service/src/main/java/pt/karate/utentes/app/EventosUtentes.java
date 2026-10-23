@@ -55,32 +55,45 @@ public class EventosUtentes {
 
     private AlunoSnapshot snapshot(Aluno aluno, long versao) {
         Pessoa p = aluno.getPessoa();
-        var responsaveis = aluno.relacoesVigentes().stream()
-                .map(r -> new AlunoSnapshot.ResponsavelResumo(
-                        r.getResponsavel().getId(),
-                        r.getResponsavel().getNome(),
-                        r.getResponsavel().getTelefone(),
-                        r.getResponsavel().getEmail(),
-                        r.getParentesco().name(),
-                        r.isResponsavelLegal(),
-                        r.isResponsavelFiscal(),
-                        r.isContactoEmergencia(),
-                        r.isAutorizadoRecolha()))
+        var responsaveis = aluno.relacoesVigentes().stream().map(EventosUtentes::resumo).toList();
+        var historico = aluno.getRelacoes().stream()
+                .filter(r -> !r.vigente())
+                .map(EventosUtentes::resumo)
                 .toList();
         var fiscal = aluno.responsavelFiscal()
                 .map(EventosUtentes::resumoFiscal)
                 .orElse(null);
+        var graduacoes = aluno.getGraduacoes().stream()
+                .map(g -> new AlunoSnapshot.GraduacaoResumo(g.getGraduacaoCodigo(), g.getGraduacao(), g.getOrdem(),
+                        g.getDataExame(), g.getExaminador()))
+                .toList();
         return new AlunoSnapshot(
                 aluno.getId(), versao, p.getId(), p.getNome(), p.getDataNascimento(),
                 p.getEmail(), p.getTelefone(), aluno.getEstado().name(), aluno.getNumFederacao(),
-                aluno.getGraduacaoAtual(), aluno.getDataInscricao(), responsaveis, fiscal);
+                aluno.getGraduacaoAtual(), aluno.getDataInscricao(), responsaveis, fiscal, historico, graduacoes);
+    }
+
+    private static AlunoSnapshot.ResponsavelResumo resumo(RelacaoResponsavel r) {
+        return new AlunoSnapshot.ResponsavelResumo(
+                r.getResponsavel().getId(),
+                r.getResponsavel().getNome(),
+                r.getResponsavel().getTelefone(),
+                r.getResponsavel().getEmail(),
+                r.getParentesco().name(),
+                r.isResponsavelLegal(),
+                r.isResponsavelFiscal(),
+                r.isContactoEmergencia(),
+                r.isAutorizadoRecolha(),
+                r.getValidoDesde(),
+                r.getValidoAte());
     }
 
     private static AlunoSnapshot.ResponsavelFiscalResumo resumoFiscal(RelacaoResponsavel r) {
         DadosFiscais df = r.getResponsavel().getDadosFiscais().orElseThrow();
         return new AlunoSnapshot.ResponsavelFiscalResumo(
-                r.getResponsavel().getId(), df.nomeFaturacao(), df.nif(), df.moradaFiscal(),
-                r.getParentesco() == Parentesco.PROPRIO);
+                r.getResponsavel().getId(), r.getResponsavel().getNome(), r.getParentesco().name(),
+                df.nomeFaturacao(), df.nif(), df.moradaFiscal(),
+                r.getParentesco() == Parentesco.PROPRIO, r.getValidoDesde());
     }
 
     private PessoaSnapshot snapshot(Pessoa pessoa, long versao) {

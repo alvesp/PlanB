@@ -9,7 +9,6 @@ import pt.karate.utentes.domain.Pessoa;
 import pt.karate.utentes.domain.RegraNegocioException;
 import pt.karate.utentes.repo.AlunoRepository;
 import pt.karate.utentes.repo.PessoaRepository;
-import pt.karate.utentes.app.Vistas.PessoaView;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -36,41 +35,36 @@ public class PessoaService {
     }
 
     @Transactional
-    public PessoaView registar(DadosPessoa dados, DadosFiscais dadosFiscais) {
+    public ResultadoComando registar(DadosPessoa dados, DadosFiscais dadosFiscais) {
         UUID id = UUID.randomUUID();
         garantirNifLivre(dadosFiscais, id);
         Pessoa pessoa = new Pessoa(id, dados.nome(), dados.dataNascimento(), dados.email(),
                 dados.telefone(), dados.morada(), dadosFiscais, clock);
         pessoas.save(pessoa);
         eventos.emitir("Registada", List.of(), List.of(pessoa));
-        return Vistas.de(pessoa);
+        return new ResultadoComando(pessoa.getId(), pessoa.getVersaoEvento());
     }
 
     @Transactional
-    public PessoaView atualizar(UUID id, DadosPessoa dados) {
+    public ResultadoComando atualizar(UUID id, DadosPessoa dados) {
         Pessoa pessoa = carregar(id);
         pessoa.atualizar(dados.nome(), dados.dataNascimento(), dados.email(), dados.telefone(),
                 dados.morada(), clock);
         // A data de nascimento pode afetar regras (ex.: responsável fiscal passa a ser menor).
         List<Aluno> afetados = revalidarAlunosAfetados(pessoa);
         eventos.emitir("Atualizada", afetados, List.of(pessoa));
-        return Vistas.de(pessoa);
+        return new ResultadoComando(pessoa.getId(), pessoa.getVersaoEvento());
     }
 
     /** {@code dadosFiscais == null} remove os dados fiscais (falha se a pessoa for responsável fiscal). */
     @Transactional
-    public PessoaView definirDadosFiscais(UUID id, DadosFiscais dadosFiscais) {
+    public ResultadoComando definirDadosFiscais(UUID id, DadosFiscais dadosFiscais) {
         Pessoa pessoa = carregar(id);
         garantirNifLivre(dadosFiscais, id);
         pessoa.definirDadosFiscais(dadosFiscais, clock);
         List<Aluno> afetados = revalidarAlunosAfetados(pessoa);
         eventos.emitir("Atualizada", afetados, List.of(pessoa));
-        return Vistas.de(pessoa);
-    }
-
-    @Transactional(readOnly = true)
-    public PessoaView obter(UUID id) {
-        return Vistas.de(carregar(id));
+        return new ResultadoComando(pessoa.getId(), pessoa.getVersaoEvento());
     }
 
     private Pessoa carregar(UUID id) {

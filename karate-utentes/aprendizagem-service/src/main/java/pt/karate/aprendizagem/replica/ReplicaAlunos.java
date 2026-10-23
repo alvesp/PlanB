@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import pt.karate.aprendizagem.app.EventosAprendizagem;
 import pt.karate.aprendizagem.repo.AlunoRefRepository;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.Topicos;
@@ -23,10 +24,12 @@ public class ReplicaAlunos {
     private static final Logger log = LoggerFactory.getLogger(ReplicaAlunos.class);
 
     private final AlunoRefRepository alunos;
+    private final EventosAprendizagem eventos;
     private final ObjectMapper objectMapper;
 
-    public ReplicaAlunos(AlunoRefRepository alunos, ObjectMapper objectMapper) {
+    public ReplicaAlunos(AlunoRefRepository alunos, EventosAprendizagem eventos, ObjectMapper objectMapper) {
         this.alunos = alunos;
+        this.eventos = eventos;
         this.objectMapper = objectMapper;
     }
 
@@ -40,6 +43,10 @@ public class ReplicaAlunos {
         }
         AlunoSnapshot a = objectMapper.readValue(rec.value(), AlunoSnapshot.class);
         int escritos = alunos.upsert(a.alunoId(), a.nome(), a.dataNascimento(), a.dataInscricao(), a.estado(), a.versao());
+        if (escritos == 1) {
+            // Aluno novo (ou com nome/estado/inscrição alterados): o read-side passa a ter o seu progresso.
+            eventos.progressoAlterado(a.alunoId());
+        }
         log.debug("Aluno {} v{} {}", a.alunoId(), a.versao(), escritos == 1 ? "replicado" : "ignorado (versão antiga)");
     }
 }

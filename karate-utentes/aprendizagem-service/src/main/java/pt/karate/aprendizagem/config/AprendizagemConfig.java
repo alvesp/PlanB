@@ -33,6 +33,30 @@ public class AprendizagemConfig {
                 .compact().build();
     }
 
+    @Bean
+    NewTopic topicoCatalogoGraduacoes(@Value("${aprendizagem.kafka.replicas:1}") short replicas) {
+        return TopicBuilder.name(TopicosAprendizagem.CATALOGO_GRADUACOES).partitions(1).replicas(replicas)
+                .compact().build();
+    }
+
+    @Bean
+    NewTopic topicoTemas(@Value("${aprendizagem.kafka.particoes:3}") int particoes,
+                         @Value("${aprendizagem.kafka.replicas:1}") short replicas) {
+        return TopicBuilder.name(TopicosAprendizagem.TEMAS).partitions(particoes).replicas(replicas).compact().build();
+    }
+
+    @Bean
+    NewTopic topicoTurmas(@Value("${aprendizagem.kafka.particoes:3}") int particoes,
+                          @Value("${aprendizagem.kafka.replicas:1}") short replicas) {
+        return TopicBuilder.name(TopicosAprendizagem.TURMAS).partitions(particoes).replicas(replicas).compact().build();
+    }
+
+    @Bean
+    NewTopic topicoAulas(@Value("${aprendizagem.kafka.particoes:3}") int particoes,
+                         @Value("${aprendizagem.kafka.replicas:1}") short replicas) {
+        return TopicBuilder.name(TopicosAprendizagem.AULAS).partitions(particoes).replicas(replicas).compact().build();
+    }
+
     /** Factos (uma mensagem por graduação obtida): retenção longa, sem compactação. */
     @Bean
     NewTopic topicoGraduacoes(@Value("${aprendizagem.kafka.particoes:3}") int particoes,

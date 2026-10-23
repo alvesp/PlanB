@@ -69,15 +69,15 @@ class UtentesServiceIntegrationTest {
                                 "responsavelFiscal", true, "contactoEmergencia", true, "autorizadoRecolha", true)))),
                 JsonNode.class);
         assertThat(inscricao.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // CQRS: o comando devolve só a identidade e a versão; o estado vem no evento.
         String alunoId = inscricao.getBody().get("id").asText();
-
-        ResponseEntity<JsonNode> fiscal = http.getForEntity("/api/alunos/" + alunoId + "/responsavel-fiscal", JsonNode.class);
-        assertThat(fiscal.getBody().get("nif").asText()).isEqualTo("123456789");
+        assertThat(inscricao.getBody().get("versao").asLong()).isEqualTo(1);
 
         ConsumerRecord<String, String> evento = esperarEvento(Topicos.ALUNOS, alunoId);
         JsonNode snapshot = json.readTree(evento.value());
         assertThat(snapshot.get("versao").asLong()).isEqualTo(1);
         assertThat(snapshot.at("/responsavelFiscal/pessoaId").asText()).isEqualTo(maeId);
+        assertThat(snapshot.at("/responsavelFiscal/nif").asText()).isEqualTo("123456789");
         assertThat(new String(evento.headers().lastHeader(OutboxHeaders.EVENT_TYPE).value())).isEqualTo("AlunoInscrito");
     }
 

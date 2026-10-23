@@ -1,22 +1,24 @@
 package pt.karate.utentes.api;
 
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import pt.karate.utentes.app.PessoaService;
-import pt.karate.utentes.app.Vistas.PessoaView;
+import pt.karate.utentes.app.ResultadoComando;
 
 import java.util.UUID;
 
-/** Pessoas: alunos e responsáveis (pais, mães, tutores...). */
+/**
+ * Comandos sobre pessoas (alunos e responsáveis). As leituras estão no read-side:
+ * {@code GET /api/consulta/pessoas/{id}} no utentes-query-service.
+ */
 @RestController
 @RequestMapping("/api/pessoas")
 public class PessoaController {
@@ -28,32 +30,25 @@ public class PessoaController {
     }
 
     @PostMapping
-    public ResponseEntity<PessoaView> registar(@Valid @RequestBody Pedidos.PessoaRequest pedido) {
-        PessoaView criada = service.registar(pedido.dados(), pedido.fiscais());
-        var location = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}").buildAndExpand(criada.id()).toUri();
-        return ResponseEntity.created(location).body(criada);
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResultadoComando registar(@Valid @RequestBody Pedidos.PessoaRequest pedido) {
+        return service.registar(pedido.dados(), pedido.fiscais());
     }
 
-    @GetMapping("/{id}")
-    public PessoaView obter(@PathVariable UUID id) {
-        return service.obter(id);
-    }
-
-    /** Atualiza dados pessoais e contactos (os dados fiscais têm endpoint próprio). */
+    /** Atualiza dados pessoais e contactos (os dados fiscais têm comando próprio). */
     @PutMapping("/{id}")
-    public PessoaView atualizar(@PathVariable UUID id, @Valid @RequestBody Pedidos.DadosPessoaRequest pedido) {
+    public ResultadoComando atualizar(@PathVariable UUID id, @Valid @RequestBody Pedidos.DadosPessoaRequest pedido) {
         return service.atualizar(id, pedido.dados());
     }
 
     @PutMapping("/{id}/dados-fiscais")
-    public PessoaView definirDadosFiscais(@PathVariable UUID id,
-                                          @Valid @RequestBody Pedidos.DadosFiscaisRequest pedido) {
+    public ResultadoComando definirDadosFiscais(@PathVariable UUID id,
+                                                @Valid @RequestBody Pedidos.DadosFiscaisRequest pedido) {
         return service.definirDadosFiscais(id, pedido.paraDominio());
     }
 
     @DeleteMapping("/{id}/dados-fiscais")
-    public PessoaView removerDadosFiscais(@PathVariable UUID id) {
+    public ResultadoComando removerDadosFiscais(@PathVariable UUID id) {
         return service.definirDadosFiscais(id, null);
     }
 }

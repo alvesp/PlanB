@@ -6,8 +6,9 @@ spring:
     name: utentes-service
   datasource:
     url: jdbc:postgresql://localhost:5432/utentes
-    username: utentes
-    password: utentes
+    # Utilizador próprio desta base (ver docker/postgres/01-bases-de-dados.sh).
+    username: ${UTENTES_DB_USER:utentes_app}
+    password: ${UTENTES_DB_PASSWORD:utentes_dev}
   jpa:
     open-in-view: false
     hibernate:

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import pt.karate.aprendizagem.domain.AlunoRef;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface AlunoRefRepository extends JpaRepository<AlunoRef, UUID> {
@@ -28,4 +29,7 @@ public interface AlunoRefRepository extends JpaRepository<AlunoRef, UUID> {
             where aluno_ref.versao < excluded.versao
             """, nativeQuery = true)
     int upsert(UUID id, String nome, LocalDate dataNascimento, LocalDate dataInscricao, String estado, long versao);
+
+    @Query("select a.id from AlunoRef a")
+    List<UUID> todosOsIds();
 }

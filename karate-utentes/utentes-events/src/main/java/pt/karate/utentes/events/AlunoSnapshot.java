@@ -10,6 +10,9 @@ import java.util.UUID;
  * O read-side não precisa de reconstruir estado a partir de deltas: indexa este snapshot
  * com versionamento externo ({@code versao}), o que torna a projeção idempotente e
  * imune a eventos duplicados ou fora de ordem.
+ *
+ * @param responsaveis          relações vigentes
+ * @param historicoResponsaveis relações já terminadas (ex.: quem foi responsável fiscal antes)
  */
 public record AlunoSnapshot(
         UUID alunoId,
@@ -24,7 +27,9 @@ public record AlunoSnapshot(
         String graduacaoAtual,
         LocalDate dataInscricao,
         List<ResponsavelResumo> responsaveis,
-        ResponsavelFiscalResumo responsavelFiscal
+        ResponsavelFiscalResumo responsavelFiscal,
+        List<ResponsavelResumo> historicoResponsaveis,
+        List<GraduacaoResumo> graduacoes
 ) {
 
     public record ResponsavelResumo(
@@ -36,16 +41,24 @@ public record AlunoSnapshot(
             boolean responsavelLegal,
             boolean responsavelFiscal,
             boolean contactoEmergencia,
-            boolean autorizadoRecolha
+            boolean autorizadoRecolha,
+            LocalDate validoDesde,
+            LocalDate validoAte
     ) {
     }
 
     public record ResponsavelFiscalResumo(
             UUID pessoaId,
+            String nome,
+            String parentesco,
             String nomeFaturacao,
             String nif,
             String moradaFiscal,
-            boolean proprioAluno
+            boolean proprioAluno,
+            LocalDate desde
     ) {
+    }
+
+    public record GraduacaoResumo(String codigo, String nome, int ordem, LocalDate data, String examinador) {
     }
 }

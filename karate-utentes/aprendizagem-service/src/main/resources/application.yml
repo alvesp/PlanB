@@ -6,8 +6,9 @@ spring:
     name: aprendizagem-service
   datasource:
     url: jdbc:postgresql://localhost:5432/aprendizagem
-    username: utentes
-    password: utentes
+    # Utilizador próprio desta base (ver docker/postgres/01-bases-de-dados.sh).
+    username: ${APRENDIZAGEM_DB_USER:aprendizagem_app}
+    password: ${APRENDIZAGEM_DB_PASSWORD:aprendizagem_dev}
   jpa:
     open-in-view: false
     hibernate:

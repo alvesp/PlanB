@@ -7,22 +7,30 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import pt.karate.aprendizagem.events.AulaSnapshot;
+import pt.karate.aprendizagem.events.GraduacaoCatalogoSnapshot;
 import pt.karate.aprendizagem.events.ProgressoAlunoSnapshot;
+import pt.karate.aprendizagem.events.TemaSnapshot;
 import pt.karate.aprendizagem.events.TopicosAprendizagem;
+import pt.karate.aprendizagem.events.TurmaSnapshot;
 import pt.karate.utentes.consulta.indices.Indices;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.PessoaSnapshot;
 import pt.karate.utentes.events.Topicos;
 
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
+
 /**
- * Consome os snapshots publicados pelo utentes-service e pelo aprendizagem-service e
- * projeta-os no OpenSearch.
- * O offset só é confirmado depois de a escrita no OpenSearch terminar (AckMode RECORD).
+ * Projeções do CQRS: consome os snapshots publicados pelos serviços de escrita e
+ * mantém um índice OpenSearch por tipo. O offset só é confirmado depois de a escrita no
+ * OpenSearch terminar (AckMode RECORD).
  */
 @Component
 public class ConsumidorEventos {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumidorEventos.class);
+    private static final String GRUPO = "${utentes.consulta.grupo:utentes-query}";
 
     private final Projecao projecao;
     private final ObjectMapper objectMapper;
@@ -32,36 +40,55 @@ public class ConsumidorEventos {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = Topicos.ALUNOS, groupId = "${utentes.consulta.grupo:utentes-query}")
+    @KafkaListener(topics = Topicos.ALUNOS, groupId = GRUPO)
     public void aluno(ConsumerRecord<String, String> rec) throws JsonProcessingException {
-        if (rec.value() == null) {
-            projecao.remover(Indices.ALUNOS, rec.key());
-            return;
-        }
-        AlunoSnapshot snapshot = objectMapper.readValue(rec.value(), AlunoSnapshot.class);
-        boolean escrito = projecao.indexar(Indices.ALUNOS, snapshot.alunoId().toString(), snapshot.versao(), snapshot);
-        log.debug("Aluno {} v{} {}", snapshot.alunoId(), snapshot.versao(), escrito ? "projetado" : "ignorado");
+        projetar(rec, Indices.ALUNOS, AlunoSnapshot.class, s -> s.alunoId().toString(), AlunoSnapshot::versao);
     }
 
-    @KafkaListener(topics = Topicos.PESSOAS, groupId = "${utentes.consulta.grupo:utentes-query}")
+    @KafkaListener(topics = Topicos.PESSOAS, groupId = GRUPO)
     public void pessoa(ConsumerRecord<String, String> rec) throws JsonProcessingException {
-        if (rec.value() == null) {
-            projecao.remover(Indices.PESSOAS, rec.key());
-            return;
-        }
-        PessoaSnapshot snapshot = objectMapper.readValue(rec.value(), PessoaSnapshot.class);
-        boolean escrito = projecao.indexar(Indices.PESSOAS, snapshot.pessoaId().toString(), snapshot.versao(), snapshot);
-        log.debug("Pessoa {} v{} {}", snapshot.pessoaId(), snapshot.versao(), escrito ? "projetada" : "ignorada");
+        projetar(rec, Indices.PESSOAS, PessoaSnapshot.class, s -> s.pessoaId().toString(), PessoaSnapshot::versao);
     }
 
-    @KafkaListener(topics = TopicosAprendizagem.PROGRESSO, groupId = "${utentes.consulta.grupo:utentes-query}")
+    @KafkaListener(topics = TopicosAprendizagem.PROGRESSO, groupId = GRUPO)
     public void progresso(ConsumerRecord<String, String> rec) throws JsonProcessingException {
+        projetar(rec, Indices.PROGRESSO, ProgressoAlunoSnapshot.class, s -> s.alunoId().toString(),
+                ProgressoAlunoSnapshot::versao);
+    }
+
+    @KafkaListener(topics = TopicosAprendizagem.CATALOGO_GRADUACOES, groupId = GRUPO)
+    public void graduacao(ConsumerRecord<String, String> rec) throws JsonProcessingException {
+        // A chave Kafka é derivada do código; o documento usa o próprio código como id.
+        projetar(rec, Indices.GRADUACOES, GraduacaoCatalogoSnapshot.class, GraduacaoCatalogoSnapshot::codigo,
+                GraduacaoCatalogoSnapshot::versao);
+    }
+
+    @KafkaListener(topics = TopicosAprendizagem.TEMAS, groupId = GRUPO)
+    public void tema(ConsumerRecord<String, String> rec) throws JsonProcessingException {
+        projetar(rec, Indices.TEMAS, TemaSnapshot.class, s -> s.temaId().toString(), TemaSnapshot::versao);
+    }
+
+    @KafkaListener(topics = TopicosAprendizagem.TURMAS, groupId = GRUPO)
+    public void turma(ConsumerRecord<String, String> rec) throws JsonProcessingException {
+        projetar(rec, Indices.TURMAS, TurmaSnapshot.class, s -> s.turmaId().toString(), TurmaSnapshot::versao);
+    }
+
+    @KafkaListener(topics = TopicosAprendizagem.AULAS, groupId = GRUPO)
+    public void aula(ConsumerRecord<String, String> rec) throws JsonProcessingException {
+        projetar(rec, Indices.AULAS, AulaSnapshot.class, s -> s.aulaId().toString(), AulaSnapshot::versao);
+    }
+
+    private <T> void projetar(ConsumerRecord<String, String> rec, String indice, Class<T> tipo,
+                              Function<T, String> id, ToLongFunction<T> versao) throws JsonProcessingException {
         if (rec.value() == null) {
-            projecao.remover(Indices.PROGRESSO, rec.key());
+            // Tombstone. Nas graduações a chave não é o código, por isso o apagamento só funciona
+            // para os restantes tipos (as graduações desativam-se, não se apagam).
+            projecao.remover(indice, rec.key());
             return;
         }
-        ProgressoAlunoSnapshot snapshot = objectMapper.readValue(rec.value(), ProgressoAlunoSnapshot.class);
-        boolean escrito = projecao.indexar(Indices.PROGRESSO, snapshot.alunoId().toString(), snapshot.versao(), snapshot);
-        log.debug("Progresso {} v{} {}", snapshot.alunoId(), snapshot.versao(), escrito ? "projetado" : "ignorado");
+        T snapshot = objectMapper.readValue(rec.value(), tipo);
+        boolean escrito = projecao.indexar(indice, id.apply(snapshot), versao.applyAsLong(snapshot), snapshot);
+        log.debug("{} {} v{} {}", indice, id.apply(snapshot), versao.applyAsLong(snapshot),
+                escrito ? "projetado" : "ignorado");
     }
 }

@@ -2,21 +2,20 @@ package pt.karate.aprendizagem.app;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pt.karate.aprendizagem.app.Vistas.GraduacaoView;
-import pt.karate.aprendizagem.app.Vistas.TemaView;
 import pt.karate.aprendizagem.domain.CategoriaTema;
 import pt.karate.aprendizagem.domain.Graduacao;
 import pt.karate.aprendizagem.domain.NaoEncontradoException;
 import pt.karate.aprendizagem.domain.RegraNegocioException;
 import pt.karate.aprendizagem.domain.Tema;
 import pt.karate.aprendizagem.domain.TipoGraduacao;
+import pt.karate.aprendizagem.repo.AlunoRefRepository;
+import pt.karate.aprendizagem.repo.AulaRepository;
 import pt.karate.aprendizagem.repo.GraduacaoRepository;
 import pt.karate.aprendizagem.repo.TemaRepository;
 
-import java.util.List;
 import java.util.UUID;
 
-/** Catálogo de graduações e temas (o "currículo" da escola). */
+/** Comandos do catálogo de graduações e temas (o "currículo" da escola). */
 @Service
 public class CatalogoService {
 
@@ -30,20 +29,22 @@ public class CatalogoService {
 
     private final GraduacaoRepository graduacoes;
     private final TemaRepository temas;
+    private final AlunoRefRepository alunos;
+    private final AulaRepository aulas;
+    private final EventosAprendizagem eventos;
 
-    public CatalogoService(GraduacaoRepository graduacoes, TemaRepository temas) {
+    public CatalogoService(GraduacaoRepository graduacoes, TemaRepository temas, AlunoRefRepository alunos,
+                           AulaRepository aulas, EventosAprendizagem eventos) {
         this.graduacoes = graduacoes;
         this.temas = temas;
-    }
-
-    @Transactional(readOnly = true)
-    public List<GraduacaoView> graduacoes() {
-        return graduacoes.findAllByOrderByOrdemAsc().stream().map(Vistas::de).toList();
+        this.alunos = alunos;
+        this.aulas = aulas;
+        this.eventos = eventos;
     }
 
     @Transactional
-    public GraduacaoView criarGraduacao(String codigo, DadosGraduacao d) {
-        if (graduacoes.existsById(codigo)) {
+    public ResultadoComando criarGraduacao(String codigo, DadosGraduacao d) {
+        if (codigo != null && graduacoes.existsById(codigo)) {
             throw new RegraNegocioException("GRADUACAO_EXISTENTE", "Já existe a graduação " + codigo + ".");
         }
         garantirOrdemLivre(d.ordem(), codigo);
@@ -52,54 +53,54 @@ public class CatalogoService {
         if (!d.ativa()) {
             g.atualizar(d.nome(), d.corFaixa(), d.tipo(), d.ordem(), d.presencasMinimas(), d.mesesMinimos(), false);
         }
-        return Vistas.de(graduacoes.save(g));
+        graduacoes.save(g);
+        long versao = eventos.graduacaoAlterada(g);
+        // Pode mudar a "próxima graduação" de qualquer aluno.
+        eventos.progressoAlterado(alunos.todosOsIds());
+        return new ResultadoComando(g.getCodigo(), versao);
     }
 
     /**
-     * Atualiza uma graduação. Não há remoção: graduações já usadas em exames desativam-se.
-     * Mudar a ordem pode alterar a "próxima graduação" dos alunos; use com cuidado.
+     * Atualiza uma graduação. Não há remoção: graduações já usadas desativam-se.
+     * Como a ordem e os mínimos afetam a progressão de todos, republica o progresso de todos os alunos.
      */
     @Transactional
-    public GraduacaoView atualizarGraduacao(String codigo, DadosGraduacao d) {
+    public ResultadoComando atualizarGraduacao(String codigo, DadosGraduacao d) {
         Graduacao g = graduacao(codigo);
         garantirOrdemLivre(d.ordem(), codigo);
         g.atualizar(d.nome(), d.corFaixa(), d.tipo(), d.ordem(), d.presencasMinimas(), d.mesesMinimos(), d.ativa());
-        return Vistas.de(g);
-    }
-
-    @Transactional(readOnly = true)
-    public List<TemaView> programa(String codigoGraduacao) {
-        graduacao(codigoGraduacao);
-        return temas.programa(codigoGraduacao).stream().map(Vistas::de).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<TemaView> pesquisarTemas(CategoriaTema categoria, String graduacao, boolean incluirInativos) {
-        return temas.pesquisar(categoria, graduacao, incluirInativos).stream().map(Vistas::de).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public TemaView tema(UUID id) {
-        return Vistas.de(carregarTema(id));
+        long versao = eventos.graduacaoAlterada(g);
+        eventos.progressoAlterado(alunos.todosOsIds());
+        return new ResultadoComando(codigo, versao);
     }
 
     @Transactional
-    public TemaView criarTema(DadosTema d) {
+    public ResultadoComando criarTema(DadosTema d) {
         UUID id = UUID.randomUUID();
         garantirNomeLivre(d.nome(), id);
         Tema t = new Tema(id, d.nome(), d.categoria(), d.descricao(), graduacaoOuNull(d.graduacaoCodigo()));
         if (!d.ativo()) {
             t.atualizar(d.nome(), d.categoria(), d.descricao(), graduacaoOuNull(d.graduacaoCodigo()), false);
         }
-        return Vistas.de(temas.save(t));
+        temas.save(t);
+        long versao = eventos.temaAlterado(t);
+        if (t.getGraduacao().isPresent()) {
+            // Muda o programa (e os temas por dominar) de quem se prepara para essa graduação.
+            eventos.progressoAlterado(alunos.todosOsIds());
+        }
+        return new ResultadoComando(id.toString(), versao);
     }
 
+    /** Republica também as aulas e o progresso dos alunos que mostram o nome ou o programa do tema. */
     @Transactional
-    public TemaView atualizarTema(UUID id, DadosTema d) {
+    public ResultadoComando atualizarTema(UUID id, DadosTema d) {
         Tema t = carregarTema(id);
         garantirNomeLivre(d.nome(), id);
         t.atualizar(d.nome(), d.categoria(), d.descricao(), graduacaoOuNull(d.graduacaoCodigo()), d.ativo());
-        return Vistas.de(t);
+        long versao = eventos.temaAlterado(t);
+        aulas.comTema(id).forEach(eventos::aulaAlterada);
+        eventos.progressoAlterado(alunos.todosOsIds());
+        return new ResultadoComando(id.toString(), versao);
     }
 
     Tema carregarTema(UUID id) {
@@ -115,7 +116,7 @@ public class CatalogoService {
     }
 
     private void garantirOrdemLivre(int ordem, String codigo) {
-        if (graduacoes.existsByOrdemAndCodigoNot(ordem, codigo)) {
+        if (graduacoes.existsByOrdemAndCodigoNot(ordem, codigo == null ? "" : codigo)) {
             throw new RegraNegocioException("ORDEM_EM_USO", "Já existe outra graduação com a ordem " + ordem + ".");
         }
     }

@@ -10,8 +10,6 @@ import pt.karate.utentes.domain.Pessoa;
 import pt.karate.utentes.domain.RegraNegocioException;
 import pt.karate.utentes.domain.RelacaoResponsavel;
 import pt.karate.aprendizagem.events.GraduacaoAtribuida;
-import pt.karate.utentes.app.Vistas.AlunoView;
-import pt.karate.utentes.app.Vistas.ResponsavelFiscalView;
 import pt.karate.utentes.repo.AlunoRepository;
 import pt.karate.utentes.repo.PessoaRepository;
 
@@ -47,7 +45,7 @@ public class AlunoService {
     }
 
     @Transactional
-    public AlunoView inscrever(NovaInscricao cmd) {
+    public ResultadoComando inscrever(NovaInscricao cmd) {
         if (alunos.existsByPessoaId(cmd.pessoaId())) {
             throw new RegraNegocioException("ALUNO_JA_INSCRITO", "Esta pessoa já está inscrita como aluno.");
         }
@@ -64,27 +62,27 @@ public class AlunoService {
         Aluno aluno = Aluno.inscrever(UUID.randomUUID(), pessoa, cmd.numFederacao(), responsaveis, clock);
         alunos.save(aluno);
         eventos.emitir("Inscrito", List.of(aluno), responsaveis.keySet());
-        return Vistas.de(aluno, false);
+        return resultado(aluno);
     }
 
     @Transactional
-    public AlunoView adicionarResponsavel(UUID alunoId, UUID pessoaId, Papeis papeis) {
+    public ResultadoComando adicionarResponsavel(UUID alunoId, UUID pessoaId, Papeis papeis) {
         Pessoa responsavel = pessoa(pessoaId);
         return alterarRelacoes(alunoId, a -> a.adicionarResponsavel(responsavel, papeis, clock));
     }
 
     @Transactional
-    public AlunoView alterarPapeis(UUID alunoId, UUID pessoaId, Papeis papeis) {
+    public ResultadoComando alterarPapeis(UUID alunoId, UUID pessoaId, Papeis papeis) {
         return alterarRelacoes(alunoId, a -> a.alterarPapeis(pessoaId, papeis, clock));
     }
 
     @Transactional
-    public AlunoView definirResponsavelFiscal(UUID alunoId, UUID pessoaId) {
+    public ResultadoComando definirResponsavelFiscal(UUID alunoId, UUID pessoaId) {
         return alterarRelacoes(alunoId, a -> a.definirResponsavelFiscal(pessoaId, clock));
     }
 
     @Transactional
-    public AlunoView terminarRelacao(UUID alunoId, UUID pessoaId) {
+    public ResultadoComando terminarRelacao(UUID alunoId, UUID pessoaId) {
         return alterarRelacoes(alunoId, a -> a.terminarRelacao(pessoaId, clock));
     }
 
@@ -103,24 +101,15 @@ public class AlunoService {
     }
 
     @Transactional
-    public AlunoView atualizarDados(UUID alunoId, String numFederacao, EstadoAluno estado) {
+    public ResultadoComando atualizarDados(UUID alunoId, String numFederacao, EstadoAluno estado) {
         Aluno aluno = carregar(alunoId);
         aluno.atualizarDados(numFederacao, estado, clock);
         eventos.emitir("Atualizado", List.of(aluno), List.of());
-        return Vistas.de(aluno, false);
+        return resultado(aluno);
     }
 
-    @Transactional(readOnly = true)
-    public AlunoView obter(UUID id, boolean historico) {
-        return Vistas.de(carregar(id), historico);
-    }
-
-    /** Quem deve ser faturado pelas mensalidades deste aluno. */
-    @Transactional(readOnly = true)
-    public ResponsavelFiscalView responsavelFiscal(UUID alunoId) {
-        return carregar(alunoId).responsavelFiscal()
-                .map(Vistas::fiscal)
-                .orElseThrow(() -> new IllegalStateException("Aluno sem responsável fiscal: " + alunoId));
+    private static ResultadoComando resultado(Aluno aluno) {
+        return new ResultadoComando(aluno.getId(), aluno.getVersaoEvento());
     }
 
     private Aluno carregar(UUID id) {
@@ -131,13 +120,13 @@ public class AlunoService {
      * Aplica uma alteração às relações e emite o aluno e todas as pessoas cuja lista
      * de alunos/papéis pode ter mudado (responsáveis antes e depois da alteração).
      */
-    private AlunoView alterarRelacoes(UUID alunoId, Consumer<Aluno> alteracao) {
+    private ResultadoComando alterarRelacoes(UUID alunoId, Consumer<Aluno> alteracao) {
         Aluno aluno = carregar(alunoId);
         Set<Pessoa> envolvidas = new LinkedHashSet<>(responsaveisVigentes(aluno));
         alteracao.accept(aluno);
         envolvidas.addAll(responsaveisVigentes(aluno));
         eventos.emitir("Atualizado", List.of(aluno), envolvidas);
-        return Vistas.de(aluno, false);
+        return resultado(aluno);
     }
 
     private static List<Pessoa> responsaveisVigentes(Aluno aluno) {

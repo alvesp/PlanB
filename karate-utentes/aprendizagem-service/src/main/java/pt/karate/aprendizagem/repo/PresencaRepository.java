@@ -30,15 +30,6 @@ public interface PresencaRepository extends JpaRepository<Presenca, UUID> {
     LocalDate ultimaPresenca(UUID alunoId);
 
     @Query("""
-            select new pt.karate.aprendizagem.repo.RegistoPresenca(
-                a.id, a.data, a.horaInicio, t.nome, p.estado, p.observacao)
-            from Presenca p join p.aula a left join a.turma t
-            where p.alunoId = :alunoId and a.data between :de and :ate
-            order by a.data desc, a.horaInicio desc
-            """)
-    List<RegistoPresenca> registosDoAluno(UUID alunoId, LocalDate de, LocalDate ate);
-
-    @Query("""
             select new pt.karate.aprendizagem.repo.PraticaTema(t.id, count(p), max(a.data))
             from Presenca p join p.aula a join a.temas t
             where p.alunoId = :alunoId and a.cancelada = false
