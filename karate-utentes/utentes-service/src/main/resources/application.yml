@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: utentes-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/utentes
+    username: utentes
+    password: utentes
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      enabled: true
+  kafka:
+    bootstrap-servers: localhost:29092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        max.block.ms: 10000
+        linger.ms: 5
+
+outbox:
+  relay:
+    intervalo-ms: 500
+    tamanho-lote: 100
+    timeout-envio: PT30S
+  retencao: P7D
+  limpeza:
+    cron: "0 30 3 * * *"
+
+utentes:
+  fuso-horario: Europe/Lisbon
+  kafka:
+    particoes: 3
+    replicas: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

@@ -1,0 +1,41 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: utentes-query-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      enabled: true
+  kafka:
+    bootstrap-servers: localhost:29092
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Novo grupo começa do início: reconstrói o read-side a partir dos tópicos compactados.
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      # Usado apenas para publicar nas DLT.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      ack-mode: record
+      concurrency: 3
+
+opensearch:
+  url: http://localhost:9200
+
+utentes:
+  fuso-horario: Europe/Lisbon
+  consulta:
+    grupo: utentes-query
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
