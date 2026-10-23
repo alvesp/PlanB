@@ -11,10 +11,6 @@ public final class Topicos {
     public static final String ALUNOS = "karate.utentes.alunos";
     public static final String PESSOAS = "karate.utentes.pessoas";
 
-    public static final String HEADER_EVENT_ID = "event-id";
-    public static final String HEADER_EVENT_TYPE = "event-type";
-    public static final String HEADER_AGGREGATE_VERSION = "aggregate-version";
-
     private Topicos() {
     }
 }

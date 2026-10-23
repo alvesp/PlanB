@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+import pt.karate.aprendizagem.events.ProgressoAlunoSnapshot;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.PessoaSnapshot;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -66,6 +69,22 @@ public class ConsultaController {
     @GetMapping("/pessoas/{id}")
     public ResponseEntity<PessoaSnapshot> pessoa(@PathVariable UUID id) {
         return ResponseEntity.of(service.pessoa(id.toString()));
+    }
+
+    @GetMapping("/progresso")
+    public Pagina<ProgressoAlunoSnapshot> pesquisarProgresso(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String graduacao,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate semPresencaDesde,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(500) int pagina,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamanho) {
+        verificarJanela(pagina, tamanho);
+        return service.pesquisarProgresso(new ConsultaService.FiltroProgresso(q, graduacao, semPresencaDesde, pagina, tamanho));
+    }
+
+    @GetMapping("/progresso/{alunoId}")
+    public ResponseEntity<ProgressoAlunoSnapshot> progresso(@PathVariable UUID alunoId) {
+        return ResponseEntity.of(service.progresso(alunoId.toString()));
     }
 
     /** O OpenSearch limita from + size a 10 000 resultados (index.max_result_window). */

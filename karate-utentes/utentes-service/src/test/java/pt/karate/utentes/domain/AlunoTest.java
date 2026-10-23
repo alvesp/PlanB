@@ -28,7 +28,7 @@ class AlunoTest {
     @Test
     void inscricaoDeMenorExigeResponsavelFiscal() {
         Map<Pessoa, Papeis> soPaiSemFiscal = Map.of(pai, PAI_LEGAL);
-        assertThatThrownBy(() -> Aluno.inscrever(UUID.randomUUID(), crianca, null, "10 kyu", soPaiSemFiscal, clock))
+        assertThatThrownBy(() -> Aluno.inscrever(UUID.randomUUID(), crianca, null, soPaiSemFiscal, clock))
                 .isInstanceOf(RegraNegocioException.class)
                 .extracting("codigo").isEqualTo("RESPONSAVEL_FISCAL_UNICO");
     }
@@ -70,21 +70,34 @@ class AlunoTest {
     }
 
     @Test
-    void graduacaoMaisRecenteAtualizaGraduacaoAtual() {
+    void graduacaoAtualEADeMaiorOrdemMesmoQueChegueForaDeOrdem() {
         Aluno aluno = inscreverComMaeEPai();
 
-        aluno.registarGraduacao("9 kyu", hoje.minusMonths(1), "Sensei Kato", clock);
-        aluno.registarGraduacao("10 kyu", hoje.minusYears(1), "Sensei Kato", clock);
+        aluno.aplicarGraduacao(UUID.randomUUID(), "9KYU", "9º Kyu", 2, hoje.minusMonths(1), "Sensei Kato", clock);
+        aluno.aplicarGraduacao(UUID.randomUUID(), "10KYU", "10º Kyu", 1, hoje.minusYears(1), "Sensei Kato", clock);
 
-        assertThat(aluno.getGraduacaoAtual()).isEqualTo("9 kyu");
+        assertThat(aluno.getGraduacaoAtual()).isEqualTo("9º Kyu");
         assertThat(aluno.getGraduacoes()).hasSize(2);
+    }
+
+    @Test
+    void aplicarAMesmaGraduacaoDuasVezesEIdempotente() {
+        Aluno aluno = inscreverComMaeEPai();
+        UUID exameId = UUID.randomUUID();
+
+        boolean primeira = aluno.aplicarGraduacao(exameId, "10KYU", "10º Kyu", 1, hoje, "Sensei Kato", clock);
+        boolean repetida = aluno.aplicarGraduacao(exameId, "10KYU", "10º Kyu", 1, hoje, "Sensei Kato", clock);
+
+        assertThat(primeira).isTrue();
+        assertThat(repetida).isFalse();
+        assertThat(aluno.getGraduacoes()).hasSize(1);
     }
 
     private Aluno inscreverComMaeEPai() {
         Map<Pessoa, Papeis> responsaveis = new LinkedHashMap<>();
         responsaveis.put(mae, MAE_LEGAL_FISCAL);
         responsaveis.put(pai, PAI_LEGAL);
-        return Aluno.inscrever(UUID.randomUUID(), crianca, "FNK-123", "10 kyu", responsaveis, clock);
+        return Aluno.inscrever(UUID.randomUUID(), crianca, "FNK-123", responsaveis, clock);
     }
 
     private Pessoa pessoa(String nome, LocalDate nascimento, DadosFiscais dadosFiscais) {

@@ -77,9 +77,4 @@ public class AlunoController {
                                              @Valid @RequestBody Pedidos.ResponsavelFiscalRequest pedido) {
         return service.definirResponsavelFiscal(id, pedido.pessoaId());
     }
-
-    @PostMapping("/{id}/graduacoes")
-    public AlunoView registarGraduacao(@PathVariable UUID id, @Valid @RequestBody Pedidos.GraduacaoRequest pedido) {
-        return service.registarGraduacao(id, pedido.graduacao(), pedido.dataExame(), pedido.examinador());
-    }
 }

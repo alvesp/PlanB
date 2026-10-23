@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
 import pt.karate.utentes.app.AlunoService;
 import pt.karate.utentes.app.PessoaService;
@@ -88,11 +87,10 @@ public final class Pedidos {
     public record InscricaoRequest(
             @NotNull UUID pessoaId,
             @Size(max = 30) String numFederacao,
-            @Size(max = 20) String graduacaoAtual,
             @NotEmpty List<@Valid @NotNull ResponsavelRequest> responsaveis
     ) {
         AlunoService.NovaInscricao paraComando() {
-            return new AlunoService.NovaInscricao(pessoaId, numFederacao, graduacaoAtual,
+            return new AlunoService.NovaInscricao(pessoaId, numFederacao,
                     responsaveis.stream().map(ResponsavelRequest::paraComando).toList());
         }
     }
@@ -104,12 +102,5 @@ public final class Pedidos {
     }
 
     public record ResponsavelFiscalRequest(@NotNull UUID pessoaId) {
-    }
-
-    public record GraduacaoRequest(
-            @NotBlank @Size(max = 20) String graduacao,
-            @NotNull @PastOrPresent LocalDate dataExame,
-            @Size(max = 200) String examinador
-    ) {
     }
 }

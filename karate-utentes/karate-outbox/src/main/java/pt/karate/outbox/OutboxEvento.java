@@ -1,4 +1,4 @@
-package pt.karate.utentes.outbox;
+package pt.karate.outbox;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

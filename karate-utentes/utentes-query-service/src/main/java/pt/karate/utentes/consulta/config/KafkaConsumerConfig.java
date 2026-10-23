@@ -11,6 +11,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.util.backoff.ExponentialBackOff;
+import pt.karate.aprendizagem.events.TopicosAprendizagem;
 import pt.karate.utentes.events.Topicos;
 
 /**
@@ -50,5 +51,10 @@ public class KafkaConsumerConfig {
     @Bean
     NewTopic pessoasDlt() {
         return TopicBuilder.name(Topicos.PESSOAS + ".DLT").partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic progressoDlt() {
+        return TopicBuilder.name(TopicosAprendizagem.PROGRESSO + ".DLT").partitions(3).replicas(1).build();
     }
 }

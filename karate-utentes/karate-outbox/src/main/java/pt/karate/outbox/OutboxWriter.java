@@ -1,10 +1,9 @@
-package pt.karate.utentes.outbox;
+package pt.karate.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +15,6 @@ import java.util.UUID;
  * Grava eventos na outbox. Exige uma transação já aberta: o evento só existe se a
  * alteração de negócio que o originou for confirmada.
  */
-@Component
 public class OutboxWriter {
 
     @PersistenceContext

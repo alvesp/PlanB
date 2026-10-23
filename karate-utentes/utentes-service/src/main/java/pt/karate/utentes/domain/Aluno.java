@@ -69,7 +69,7 @@ public class Aluno {
      * Inscreve um aluno já com os seus responsáveis, para que o agregado nunca exista
      * num estado inválido (ex.: menor sem responsável fiscal).
      */
-    public static Aluno inscrever(UUID id, Pessoa pessoa, String numFederacao, String graduacaoAtual,
+    public static Aluno inscrever(UUID id, Pessoa pessoa, String numFederacao,
                                   Map<Pessoa, Papeis> responsaveis, Clock clock) {
         LocalDate hoje = LocalDate.now(clock);
         Aluno aluno = new Aluno();
@@ -77,7 +77,6 @@ public class Aluno {
         aluno.pessoa = Objects.requireNonNull(pessoa);
         aluno.estado = EstadoAluno.ATIVO;
         aluno.numFederacao = numFederacao;
-        aluno.graduacaoAtual = graduacaoAtual;
         aluno.dataInscricao = hoje;
         aluno.criadoEm = Instant.now(clock);
         aluno.atualizadoEm = aluno.criadoEm;
@@ -140,19 +139,24 @@ public class Aluno {
         validar(hoje);
     }
 
-    public void registarGraduacao(String graduacao, LocalDate dataExame, String examinador, Clock clock) {
-        if (graduacao == null || graduacao.isBlank()) {
-            throw new RegraNegocioException("GRADUACAO_OBRIGATORIA", "A graduação é obrigatória.");
+    /**
+     * Regista uma graduação atribuída pelo aprendizagem-service (dono das graduações).
+     * Idempotente pelo {@code exameId}; a graduação atual é a de maior ordem.
+     *
+     * @return {@code false} se este exame já tinha sido registado
+     */
+    public boolean aplicarGraduacao(UUID exameId, String codigo, String nome, int ordem, LocalDate data,
+                                    String examinador, Clock clock) {
+        Objects.requireNonNull(exameId, "exameId");
+        if (graduacoes.stream().anyMatch(g -> exameId.equals(g.getExameId()))) {
+            return false;
         }
-        if (dataExame.isAfter(LocalDate.now(clock))) {
-            throw new RegraNegocioException("DATA_EXAME_FUTURA", "A data do exame não pode ser futura.");
-        }
-        graduacoes.add(new GraduacaoRegisto(this, graduacao.strip(), dataExame, examinador));
-        boolean maisRecente = graduacoes.stream().allMatch(g -> !g.getDataExame().isAfter(dataExame));
-        if (maisRecente) {
-            graduacaoAtual = graduacao.strip();
-        }
+        graduacoes.add(new GraduacaoRegisto(this, exameId, codigo, nome, ordem, data, examinador));
+        graduacoes.stream()
+                .max(java.util.Comparator.comparingInt(GraduacaoRegisto::getOrdem))
+                .ifPresent(g -> graduacaoAtual = g.getGraduacao());
         tocar(clock);
+        return true;
     }
 
     public void atualizarDados(String numFederacao, EstadoAluno estado, Clock clock) {

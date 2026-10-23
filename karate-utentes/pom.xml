@@ -16,11 +16,14 @@
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>karate-utentes</name>
-    <description>Gestão de utentes (alunos e responsáveis) de uma escola de karate</description>
+    <description>Escola de karate: gestão de utentes (alunos e responsáveis) e de aprendizagens (graduações, temas e presenças)</description>
 
     <modules>
+        <module>karate-outbox</module>
         <module>utentes-events</module>
+        <module>aprendizagem-events</module>
         <module>utentes-service</module>
+        <module>aprendizagem-service</module>
         <module>utentes-query-service</module>
     </modules>
 
@@ -33,7 +36,17 @@
         <dependencies>
             <dependency>
                 <groupId>pt.karate</groupId>
+                <artifactId>karate-outbox</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>pt.karate</groupId>
                 <artifactId>utentes-events</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>pt.karate</groupId>
+                <artifactId>aprendizagem-events</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

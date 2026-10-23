@@ -21,19 +21,39 @@ public class GraduacaoRegisto {
     @JoinColumn(name = "aluno_id")
     private Aluno aluno;
 
+    /** Exame no aprendizagem-service que originou este registo (chave de idempotência). */
+    private UUID exameId;
+    private String graduacaoCodigo;
     private String graduacao;
+    private int ordem;
     private LocalDate dataExame;
     private String examinador;
 
     protected GraduacaoRegisto() {
     }
 
-    GraduacaoRegisto(Aluno aluno, String graduacao, LocalDate dataExame, String examinador) {
+    GraduacaoRegisto(Aluno aluno, UUID exameId, String graduacaoCodigo, String graduacao, int ordem,
+                     LocalDate dataExame, String examinador) {
         this.id = UUID.randomUUID();
         this.aluno = aluno;
+        this.exameId = exameId;
+        this.graduacaoCodigo = graduacaoCodigo;
         this.graduacao = graduacao;
+        this.ordem = ordem;
         this.dataExame = dataExame;
         this.examinador = examinador;
+    }
+
+    public UUID getExameId() {
+        return exameId;
+    }
+
+    public String getGraduacaoCodigo() {
+        return graduacaoCodigo;
+    }
+
+    public int getOrdem() {
+        return ordem;
     }
 
     public UUID getId() {

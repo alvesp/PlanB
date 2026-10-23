@@ -1,13 +1,11 @@
-package pt.karate.utentes.outbox;
+package pt.karate.outbox;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -21,9 +19,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static pt.karate.utentes.events.Topicos.HEADER_AGGREGATE_VERSION;
-import static pt.karate.utentes.events.Topicos.HEADER_EVENT_ID;
-import static pt.karate.utentes.events.Topicos.HEADER_EVENT_TYPE;
 
 /**
  * Publica no Kafka os eventos pendentes da outbox.
@@ -34,7 +29,6 @@ import static pt.karate.utentes.events.Topicos.HEADER_EVENT_TYPE;
  * o evento volta a ser enviado. O read-side tolera duplicados e eventos fora de ordem
  * porque indexa snapshots com versionamento externo ({@code aggregate-version}).
  */
-@Component
 public class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
@@ -51,19 +45,17 @@ public class OutboxRelay {
                        KafkaTemplate<String, String> kafka,
                        TransactionTemplate tx,
                        Clock clock,
-                       @Value("${outbox.relay.tamanho-lote:100}") int tamanhoLote,
-                       @Value("${outbox.relay.timeout-envio:PT30S}") Duration timeoutEnvio,
-                       @Value("${outbox.retencao:P7D}") Duration retencao) {
+                       OutboxProperties props) {
         this.repository = repository;
         this.kafka = kafka;
         this.tx = tx;
         this.clock = clock;
-        this.tamanhoLote = tamanhoLote;
-        this.timeoutEnvio = timeoutEnvio;
-        this.retencao = retencao;
+        this.tamanhoLote = props.tamanhoLote();
+        this.timeoutEnvio = props.timeoutEnvio();
+        this.retencao = props.retencao();
     }
 
-    @Scheduled(fixedDelayString = "${outbox.relay.intervalo-ms:500}")
+    @Scheduled(fixedDelayString = "${outbox.intervalo-ms:500}")
     public void publicarPendentes() {
         // Repete enquanto houver lotes cheios, para escoar picos sem esperar pelo próximo ciclo.
         int publicados;
@@ -114,13 +106,13 @@ public class OutboxRelay {
         ProducerRecord<String, String> rec = new ProducerRecord<>(
                 evento.getTopic(), evento.getAggregateId().toString(), evento.getPayload());
         rec.headers()
-                .add(HEADER_EVENT_ID, bytes(evento.getId().toString()))
-                .add(HEADER_EVENT_TYPE, bytes(evento.getEventType()))
-                .add(HEADER_AGGREGATE_VERSION, bytes(Long.toString(evento.getAggregateVersion())));
+                .add(OutboxHeaders.EVENT_ID, bytes(evento.getId().toString()))
+                .add(OutboxHeaders.EVENT_TYPE, bytes(evento.getEventType()))
+                .add(OutboxHeaders.AGGREGATE_VERSION, bytes(Long.toString(evento.getAggregateVersion())));
         return rec;
     }
 
-    @Scheduled(cron = "${outbox.limpeza.cron:0 30 3 * * *}")
+    @Scheduled(cron = "${outbox.limpeza-cron:0 30 3 * * *}")
     public void limparPublicados() {
         Integer apagados = tx.execute(status ->
                 repository.apagarPublicadosAntesDe(Instant.now(clock).minus(retencao)));

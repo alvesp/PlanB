@@ -9,6 +9,7 @@ import pt.karate.utentes.domain.Papeis;
 import pt.karate.utentes.domain.Pessoa;
 import pt.karate.utentes.domain.RegraNegocioException;
 import pt.karate.utentes.domain.RelacaoResponsavel;
+import pt.karate.aprendizagem.events.GraduacaoAtribuida;
 import pt.karate.utentes.app.Vistas.AlunoView;
 import pt.karate.utentes.app.Vistas.ResponsavelFiscalView;
 import pt.karate.utentes.repo.AlunoRepository;
@@ -30,8 +31,7 @@ public class AlunoService {
     public record NovoResponsavel(UUID pessoaId, Papeis papeis) {
     }
 
-    public record NovaInscricao(UUID pessoaId, String numFederacao, String graduacaoAtual,
-                                List<NovoResponsavel> responsaveis) {
+    public record NovaInscricao(UUID pessoaId, String numFederacao, List<NovoResponsavel> responsaveis) {
     }
 
     private final AlunoRepository alunos;
@@ -61,8 +61,7 @@ public class AlunoService {
             }
         }
 
-        Aluno aluno = Aluno.inscrever(UUID.randomUUID(), pessoa, cmd.numFederacao(), cmd.graduacaoAtual(),
-                responsaveis, clock);
+        Aluno aluno = Aluno.inscrever(UUID.randomUUID(), pessoa, cmd.numFederacao(), responsaveis, clock);
         alunos.save(aluno);
         eventos.emitir("Inscrito", List.of(aluno), responsaveis.keySet());
         return Vistas.de(aluno, false);
@@ -89,12 +88,18 @@ public class AlunoService {
         return alterarRelacoes(alunoId, a -> a.terminarRelacao(pessoaId, clock));
     }
 
+    /**
+     * Aplica uma graduação atribuída no aprendizagem-service (consumidor Kafka).
+     * Idempotente: um evento repetido não altera nada nem emite novo snapshot.
+     */
     @Transactional
-    public AlunoView registarGraduacao(UUID alunoId, String graduacao, LocalDate dataExame, String examinador) {
-        Aluno aluno = carregar(alunoId);
-        aluno.registarGraduacao(graduacao, dataExame, examinador, clock);
-        eventos.emitir("Atualizado", List.of(aluno), List.of());
-        return Vistas.de(aluno, false);
+    public void aplicarGraduacao(GraduacaoAtribuida evento) {
+        Aluno aluno = carregar(evento.alunoId());
+        boolean alterado = aluno.aplicarGraduacao(evento.exameId(), evento.graduacaoCodigo(), evento.graduacaoNome(),
+                evento.ordem(), evento.data(), evento.examinador(), clock);
+        if (alterado) {
+            eventos.emitir("Atualizado", List.of(aluno), List.of());
+        }
     }
 
     @Transactional

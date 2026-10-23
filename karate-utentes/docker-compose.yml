@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U utentes -d utentes"]
       interval: 5s
@@ -74,6 +75,23 @@ services:
       kafka:
         condition: service_healthy
 
+  aprendizagem-service:
+    build:
+      context: .
+      dockerfile: aprendizagem-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aprendizagem
+      SPRING_DATASOURCE_USERNAME: utentes
+      SPRING_DATASOURCE_PASSWORD: utentes
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
   utentes-query-service:
     build:
       context: .
@@ -89,6 +107,8 @@ services:
       opensearch:
         condition: service_healthy
       utentes-service:
+        condition: service_started
+      aprendizagem-service:
         condition: service_started
 
 volumes:

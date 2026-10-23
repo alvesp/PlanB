@@ -11,7 +11,7 @@ import pt.karate.utentes.domain.RelacaoResponsavel;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.PessoaSnapshot;
 import pt.karate.utentes.events.Topicos;
-import pt.karate.utentes.outbox.OutboxWriter;
+import pt.karate.outbox.OutboxWriter;
 import pt.karate.utentes.repo.AlunoRepository;
 
 import java.util.Collection;

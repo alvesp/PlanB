@@ -26,6 +26,7 @@ public class Indices {
 
     public static final String ALUNOS = "utentes-alunos";
     public static final String PESSOAS = "utentes-pessoas";
+    public static final String PROGRESSO = "aprendizagem-progresso";
     static final String ANALISADOR = "pt_folding";
 
     private static final Logger log = LoggerFactory.getLogger(Indices.class);
@@ -40,6 +41,7 @@ public class Indices {
     void criarSeNecessario() throws IOException {
         criar(ALUNOS, mapeamentoAlunos());
         criar(PESSOAS, mapeamentoPessoas());
+        criar(PROGRESSO, mapeamentoProgresso());
     }
 
     private void criar(String indice, TypeMapping mapeamento) throws IOException {
@@ -115,6 +117,40 @@ public class Indices {
                 .properties("alunos", Property.of(p -> p.nested(n -> n.properties(aluno)))));
     }
 
+    private static TypeMapping mapeamentoProgresso() {
+        Map<String, Property> graduacao = Map.of(
+                "codigo", keyword(),
+                "nome", keyword(),
+                "corFaixa", keyword(),
+                "ordem", inteiro());
+        Map<String, Property> obtida = Map.of(
+                "exameId", keyword(),
+                "codigo", keyword(),
+                "nome", keyword(),
+                "data", data(),
+                "examinador", textoSimples());
+        Map<String, Property> tema = Map.of(
+                "temaId", keyword(),
+                "nome", texto(),
+                "categoria", keyword(),
+                "graduacaoCodigo", keyword(),
+                "nivel", keyword(),
+                "data", data());
+        return TypeMapping.of(m -> m
+                .dynamic(DynamicMapping.False)
+                .properties("alunoId", keyword())
+                .properties("versao", longo())
+                .properties("nome", texto())
+                .properties("graduacaoAtual", Property.of(p -> p.object(o -> o.properties(graduacao))))
+                .properties("dataGraduacaoAtual", data())
+                .properties("proximaGraduacao", Property.of(p -> p.object(o -> o.properties(graduacao))))
+                .properties("totalPresencas", longo())
+                .properties("presencasDesdeUltimaGraduacao", longo())
+                .properties("ultimaPresenca", data())
+                .properties("historico", Property.of(p -> p.nested(n -> n.properties(obtida))))
+                .properties("temas", Property.of(p -> p.nested(n -> n.properties(tema)))));
+    }
+
     /** Texto pesquisável sem acentos, com subcampo {@code .keyword} para ordenação. */
     private static Property texto() {
         return Property.of(p -> p.text(t -> t
@@ -132,6 +168,10 @@ public class Indices {
 
     private static Property booleano() {
         return Property.of(p -> p.boolean_(b -> b));
+    }
+
+    private static Property inteiro() {
+        return Property.of(p -> p.integer(i -> i));
     }
 
     private static Property longo() {

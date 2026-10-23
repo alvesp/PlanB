@@ -1,4 +1,4 @@
-package pt.karate.utentes.outbox;
+package pt.karate.outbox;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

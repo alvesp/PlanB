@@ -11,6 +11,7 @@ import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.springframework.stereotype.Service;
+import pt.karate.aprendizagem.events.ProgressoAlunoSnapshot;
 import pt.karate.utentes.consulta.indices.Indices;
 import pt.karate.utentes.events.AlunoSnapshot;
 import pt.karate.utentes.events.PessoaSnapshot;
@@ -32,6 +33,10 @@ public class ConsultaService {
     public record FiltroPessoas(String texto, String nif, int pagina, int tamanho) {
     }
 
+    /** {@code semPresencaDesde}: alunos cuja última presença é anterior a esta data (ou sem presenças). */
+    public record FiltroProgresso(String texto, String graduacao, LocalDate semPresencaDesde, int pagina, int tamanho) {
+    }
+
     private static final int MAIORIDADE = 18;
 
     private final OpenSearchClient client;
@@ -48,6 +53,39 @@ public class ConsultaService {
 
     public Optional<PessoaSnapshot> pessoa(String id) {
         return obter(Indices.PESSOAS, id, PessoaSnapshot.class);
+    }
+
+    public Optional<ProgressoAlunoSnapshot> progresso(String alunoId) {
+        return obter(Indices.PROGRESSO, alunoId, ProgressoAlunoSnapshot.class);
+    }
+
+    /** Progresso dos alunos: por nome, graduação atual e assiduidade (ex.: quem não treina há um mês). */
+    public Pagina<ProgressoAlunoSnapshot> pesquisarProgresso(FiltroProgresso f) {
+        BoolQuery.Builder bool = new BoolQuery.Builder();
+        if (temTexto(f.texto())) {
+            String t = f.texto().strip();
+            bool.must(m -> m.match(mt -> mt.field("nome").query(FieldValue.of(t)).fuzziness("AUTO")));
+        }
+        if (temTexto(f.graduacao())) {
+            bool.filter(termo("graduacaoAtual.codigo", f.graduacao().strip()));
+        }
+        if (f.semPresencaDesde() != null) {
+            String limite = f.semPresencaDesde().toString();
+            bool.filter(q -> q.bool(b -> b
+                    .should(s -> s.range(r -> r.field("ultimaPresenca").lt(JsonData.of(limite))))
+                    .should(s -> s.bool(n -> n.mustNot(e -> e.exists(x -> x.field("ultimaPresenca")))))
+                    .minimumShouldMatch("1")));
+        }
+        SearchRequest.Builder req = new SearchRequest.Builder()
+                .index(Indices.PROGRESSO)
+                .query(q -> q.bool(bool.build()))
+                .from(f.pagina() * f.tamanho())
+                .size(f.tamanho())
+                .trackTotalHits(t -> t.enabled(true));
+        if (!temTexto(f.texto())) {
+            req.sort(s -> s.field(fs -> fs.field("nome.keyword").order(SortOrder.Asc)));
+        }
+        return pesquisar(req.build(), ProgressoAlunoSnapshot.class, f.pagina(), f.tamanho());
     }
 
     /**

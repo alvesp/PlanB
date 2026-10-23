@@ -17,6 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
+import pt.karate.outbox.OutboxHeaders;
 import pt.karate.utentes.events.Topicos;
 
 import java.time.Duration;
@@ -62,7 +63,6 @@ class UtentesServiceIntegrationTest {
 
         ResponseEntity<JsonNode> inscricao = http.postForEntity("/api/alunos", Map.of(
                 "pessoaId", criancaId,
-                "graduacaoAtual", "10 kyu",
                 "responsaveis", List.of(Map.of(
                         "pessoaId", maeId,
                         "papeis", Map.of("parentesco", "MAE", "responsavelLegal", true,
@@ -78,7 +78,7 @@ class UtentesServiceIntegrationTest {
         JsonNode snapshot = json.readTree(evento.value());
         assertThat(snapshot.get("versao").asLong()).isEqualTo(1);
         assertThat(snapshot.at("/responsavelFiscal/pessoaId").asText()).isEqualTo(maeId);
-        assertThat(new String(evento.headers().lastHeader(Topicos.HEADER_EVENT_TYPE).value())).isEqualTo("AlunoInscrito");
+        assertThat(new String(evento.headers().lastHeader(OutboxHeaders.EVENT_TYPE).value())).isEqualTo("AlunoInscrito");
     }
 
     @Test
